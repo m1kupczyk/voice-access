@@ -1,0 +1,38 @@
+{
+  "systems": [
+    {
+      "name": "GMM-UBM",
+      "runs": [
+        "results/gmm/gmm_seed1",
+        "results/gmm/gmm_seed2",
+        "results/gmm/gmm_seed3",
+        "results/gmm/gmm_seed4",
+        "results/gmm/gmm_seed5"
+      ]
+    },
+    {
+      "name": "ECAPA-TDNN",
+      "runs": [
+        "results/ecapa/full_seed1234"
+      ]
+    }
+  ],
+  "seed": 1234,
+  "bootstrap": {
+    "n_resamples": 1000,
+    "ci_level": 0.95
+  },
+  "min_dcf": {
+    "p_target": 0.01,
+    "c_miss": 1.0,
+    "c_fa": 1.0
+  },
+  "n_trials": 37611,
+  "n_enroll_speakers": 40,
+  "figures": [
+    "det_gmm_vs_ecapa.png",
+    "det_gmm_vs_ecapa.pdf",
+    "roc_gmm_vs_ecapa.png",
+    "roc_gmm_vs_ecapa.pdf"
+  ]
+}

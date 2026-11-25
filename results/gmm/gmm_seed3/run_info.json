@@ -1,0 +1,7 @@
+{
+  "experiment": "gmm",
+  "run_id": "gmm_seed3",
+  "seed": 3,
+  "num_threads": 1,
+  "git_commit": "9378e6598bc4b5c7dc37a6ee3a7fe626862534ef"
+}

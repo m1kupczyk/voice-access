@@ -1,0 +1,18 @@
+{
+  "ubm_source": "librispeech_train_clean_100",
+  "n_components": 256,
+  "seed": 4,
+  "max_trials": null,
+  "num_threads": 1,
+  "threadpoolctl_applied": true,
+  "ubm_n_utts": 1430,
+  "ubm_n_frames": 696919,
+  "ubm_feature_seconds": 11.407577707985183,
+  "ubm_train_seconds": 309.8247604999924,
+  "n_trials": 37611,
+  "n_target": 18802,
+  "n_nontarget": 18809,
+  "eer": 0.14897237531485436,
+  "scoring_seconds": 126.83282491599675,
+  "note": "LibriSpeech UBM: domain mismatch vs VoxCeleb1 (see PLAN.md)"
+}

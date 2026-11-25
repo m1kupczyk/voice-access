@@ -1,0 +1,7 @@
+{
+  "experiment": "ecapa",
+  "run_id": "full_seed1234",
+  "seed": 1234,
+  "num_threads": 1,
+  "git_commit": "e5b71b89217aa88f64ebdfdfc0ff726989ad08ef"
+}

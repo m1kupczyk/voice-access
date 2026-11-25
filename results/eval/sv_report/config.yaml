@@ -1,0 +1,138 @@
+seed: 1234
+device: cpu
+runtime:
+  num_threads: 1
+paths:
+  data_dir: data
+  voxceleb1_root: data/raw/voxceleb1
+  voxceleb1_trials: data/raw/voxceleb1/veri_test2.txt
+  own_root: data/raw/own
+  manifests_dir: data/manifests
+  embeddings_dir: data/embeddings
+  results_dir: results
+audio:
+  sample_rate: 16000
+  mono: true
+  normalize: true
+  peak_target: 0.95
+  eps: 1.0e-08
+  vad:
+    enabled: true
+    frame_ms: 25
+    hop_ms: 10
+    threshold_db: -35.0
+    min_speech_ms: 100
+    pad_ms: 50
+voxceleb1:
+  wav_subdir: ''
+  audio_extension: .wav
+  test_speaker_id_range:
+  - 10270
+  - 10309
+  manifest_file: voxceleb1_manifest.csv
+  trials_file: voxceleb1_o_trials.csv
+  missing_report_file: voxceleb1_o_missing.txt
+own_corpus:
+  manifest_file: own_manifest.csv
+  sessions_min: 2
+  speaker_id_prefix: spk
+  language: pl
+  recording:
+    seconds_free_speech: 60
+    n_digit_strings: 10
+    digit_string_length: 6
+    seconds_per_digit: 1.0
+    digit_extra_seconds: 2.0
+    countdown_seconds: 3
+    devices:
+    - laptop_mic
+  index_file: recordings.csv
+  protocol_file: RECORDING_PROTOCOL.md
+features:
+  mfcc:
+    n_mfcc: 20
+    n_mels: 40
+    frame_ms: 25
+    hop_ms: 10
+    fmin_hz: 20.0
+    fmax_hz: null
+    deltas: true
+    delta_width: 9
+    cmvn_mean: true
+    cmvn_var: true
+gmm:
+  ubm_source: librispeech_train_clean_100
+  librispeech_root: data/librispeech/LibriSpeech/train-clean-100
+  audio_extension: .flac
+  ubm_max_utts: 2000
+  ubm_max_hours: 5.0
+  ubm_frames_per_utt: 500
+  n_components: 256
+  covariance_type: diag
+  max_iter: 200
+  em_tol: 0.001
+  reg_covar: 0.001
+  init_params: kmeans
+  relevance_factor: 16.0
+  map_iters: 2
+  score_chunk_frames: 8192
+  results_experiment: gmm
+ecapa:
+  model_source: speechbrain/spkrec-ecapa-voxceleb
+  savedir: pretrained_models/spkrec-ecapa-voxceleb
+  vad: false
+  cache_flush_every: 500
+  results_experiment: ecapa
+eval:
+  min_dcf:
+    p_target: 0.01
+    c_miss: 1.0
+    c_fa: 1.0
+  threshold:
+    method: eer
+    far_target: 0.01
+  dev_eval_split:
+    dev_fraction: 0.5
+  bootstrap:
+    n_resamples: 1000
+    ci_level: 0.95
+  plots:
+    dpi: 300
+    formats:
+    - png
+    - pdf
+    figsize_in:
+    - 3.5
+    - 3.5
+    font_size: 8
+    line_width: 1.2
+    det_limits:
+    - 0.001
+    - 0.5
+    det_ticks:
+    - 0.001
+    - 0.005
+    - 0.01
+    - 0.02
+    - 0.05
+    - 0.1
+    - 0.2
+    - 0.4
+  report:
+    experiment: eval
+    run_id: sv_report
+    figure_stem: gmm_vs_ecapa
+    language: pl
+    pct_decimals: 2
+    dcf_decimals: 4
+    systems:
+    - name: GMM-UBM
+      runs:
+      - results/gmm/gmm_seed1
+      - results/gmm/gmm_seed2
+      - results/gmm/gmm_seed3
+      - results/gmm/gmm_seed4
+      - results/gmm/gmm_seed5
+    - name: ECAPA-TDNN
+      runs:
+      - results/ecapa/full_seed1234

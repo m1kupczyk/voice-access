@@ -1,0 +1,7 @@
+{
+  "experiment": "eval",
+  "run_id": "sv_report",
+  "seed": 1234,
+  "num_threads": 1,
+  "git_commit": "49a9fe7494e3bc33e888fcce044558b3f7582d45"
+}

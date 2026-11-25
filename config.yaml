@@ -1,0 +1,179 @@
+seed: 1234
+device: cpu
+
+runtime:
+  num_threads: 1             # BLAS/OpenMP threads; 1 = bit-reproducible results
+
+paths:
+  data_dir: data
+  voxceleb1_root: data/raw/voxceleb1      # contains idXXXXX/<video>/<n>.wav
+  voxceleb1_trials: data/raw/voxceleb1/veri_test2.txt   # official cleaned VoxCeleb1-O list
+  own_root: data/raw/own
+  manifests_dir: data/manifests
+  embeddings_dir: data/embeddings
+  results_dir: results
+
+audio:
+  sample_rate: 16000
+  mono: true
+  normalize: true
+  peak_target: 0.95          # peak amplitude after normalization
+  eps: 1.0e-8                # guard against division by zero
+  vad:
+    enabled: true
+    frame_ms: 25
+    hop_ms: 10
+    threshold_db: -35.0      # frames this far below the max frame energy are silence
+    min_speech_ms: 100       # shorter speech runs are discarded
+    pad_ms: 50               # context kept around the speech region
+
+voxceleb1:
+  wav_subdir: ""                          # no extra level between root and idXXXXX
+  audio_extension: .wav
+  test_speaker_id_range: [10270, 10309]   # VoxCeleb1 test speakers (id10270..id10309)
+  manifest_file: voxceleb1_manifest.csv
+  trials_file: voxceleb1_o_trials.csv
+  missing_report_file: voxceleb1_o_missing.txt
+
+own_corpus:
+  manifest_file: own_manifest.csv
+  sessions_min: 2
+  speaker_id_prefix: spk
+  language: pl
+  recording:
+    seconds_free_speech: 60
+    n_digit_strings: 10
+    digit_string_length: 6
+    seconds_per_digit: 1.0
+    digit_extra_seconds: 2.0
+    countdown_seconds: 3
+    devices: [laptop_mic]
+  index_file: recordings.csv     # appended by the recorder, lives in own_root
+  protocol_file: RECORDING_PROTOCOL.md
+
+features:
+  mfcc:
+    n_mfcc: 20               # static coefficients (including c0)
+    n_mels: 40
+    frame_ms: 25
+    hop_ms: 10
+    fmin_hz: 20.0
+    fmax_hz: null            # null = sample_rate / 2
+    deltas: true             # append delta and delta-delta
+    delta_width: 9           # odd, frames
+    cmvn_mean: true          # per-utterance mean normalization
+    cmvn_var: true           # per-utterance variance normalization
+
+gmm:
+  # Background data for the UBM. "librispeech_train_clean_100" is the FALLBACK
+  # (domain mismatch vs VoxCeleb1, see PLAN.md); the preferred source is a VoxCeleb1 dev subset.
+  ubm_source: librispeech_train_clean_100
+  librispeech_root: data/librispeech/LibriSpeech/train-clean-100
+  audio_extension: .flac
+  # Training-time controls (M1 CPU cost grows ~linearly with each of these).
+  ubm_max_utts: 2000         # null = no limit
+  ubm_max_hours: 5.0         # raw duration cap before VAD; null = no limit
+  ubm_frames_per_utt: 500    # random frames kept per utterance
+  n_components: 256
+  covariance_type: diag
+  max_iter: 200
+  em_tol: 1.0e-3
+  reg_covar: 1.0e-3          # variance floor
+  init_params: kmeans        # kmeans | k-means++ | random | random_from_data
+  # MAP adaptation (means only).
+  relevance_factor: 16.0
+  map_iters: 2
+  # Scoring.
+  score_chunk_frames: 8192   # frames per matrix block, bounds memory
+  results_experiment: gmm
+
+ecapa:
+  model_source: speechbrain/spkrec-ecapa-voxceleb   # model name; also the embedding cache key
+  savedir: pretrained_models/spkrec-ecapa-voxceleb  # local copy of the checkpoint (gitignored)
+  vad: false                 # the model was trained on untrimmed speech; no VAD trimming
+  cache_flush_every: 500     # write cache shard to disk after this many new embeddings
+  results_experiment: ecapa
+
+challenge:
+  digit_string_length: 4       # digits per challenge
+  unique_digits: true          # no repeated digit within a challenge
+
+asr:
+  model: small                 # openai-whisper model, run on `device`
+  language: pl
+  fp16: false                  # CPU
+  temperature: 0.0
+  initial_prompt: null
+  condition_on_previous_text: false
+
+common_voice:
+  root: data/raw/common_voice_sw/cv-corpus-7.0-singleword/pl
+  clips_subdir: clips
+  tsv: validated.tsv
+  min_digits_per_speaker: 9    # distinct digits needed (also >= enroll_clips + string length)
+  enroll_clips: 5              # clips concatenated for enrollment; disjoint from test clips
+  strings_per_speaker: 5       # synthetic test strings per speaker
+  silence_ms: [150, 400]       # silence between concatenated clips (uniform range)
+  impostor_speakers_for_own: 20   # Common Voice speakers used as impostors in the own-corpus run
+
+challenge_eval:
+  results_experiment: challenge
+  own_enroll_kind: free        # own corpus: enrollment from this recording kind
+  own_test_kind: digits
+
+api:
+  host: 127.0.0.1
+  port: 8000
+  db_path: data/api/voice_access.db         # SQLite; embeddings only, never audio
+  speaker_model: ecapa                      # only ECAPA is served; GMM-UBM stays offline
+  # Speaker threshold selected on dev and transferred to eval (stage 4, Common Voice SW).
+  threshold_file: results/challenge/cv_full_seed1234/metrics.json
+  threshold_key: threshold_transfer.threshold   # dotted path inside threshold_file
+  challenge_ttl_seconds: 60                 # nonce expiry
+  nonce_bytes: 16                           # secrets.token_urlsafe entropy
+  max_upload_bytes: 10485760                # 10 MiB per upload
+  min_audio_seconds: 1.0                    # decoded audio shorter than this is rejected
+  max_name_length: 64
+  ffmpeg_bin: ffmpeg                        # decodes browser formats (webm/opus, mp4) via pipes
+  ffmpeg_timeout_seconds: 30
+  scenarios: [genuine, wrong_digits, impostor, replay]   # /verify labels for live stats only, never used in the decision
+  default_scenario: genuine
+  replay:                                   # stage 5 countermeasure hook
+    enabled: false
+    model_path: null
+    threshold: null                         # CM score >= threshold -> bona fide
+
+eval:
+  min_dcf:                   # detection cost function; reported value is normalized
+    p_target: 0.01
+    c_miss: 1.0
+    c_fa: 1.0
+  threshold:
+    method: eer              # eer | far_target
+    far_target: 0.01         # used when method = far_target
+  dev_eval_split:            # speaker-disjoint dev/eval split for threshold transfer
+    dev_fraction: 0.5
+  bootstrap:                 # speaker-level (cluster) bootstrap, clusters = enrollment speakers
+    n_resamples: 1000
+    ci_level: 0.95
+  plots:
+    dpi: 300
+    formats: [png, pdf]
+    figsize_in: [3.5, 3.5]
+    font_size: 8
+    line_width: 1.2
+    det_limits: [0.001, 0.5]                                  # probability, both axes
+    det_ticks: [0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.4]
+  report:
+    experiment: eval
+    run_id: sv_report
+    figure_stem: gmm_vs_ecapa
+    language: pl             # pl | en; figure labels (decimal comma for pl)
+    pct_decimals: 2
+    dcf_decimals: 4
+    systems:
+      - name: GMM-UBM
+        runs: [results/gmm/gmm_seed1, results/gmm/gmm_seed2, results/gmm/gmm_seed3,
+               results/gmm/gmm_seed4, results/gmm/gmm_seed5]
+      - name: ECAPA-TDNN
+        runs: [results/ecapa/full_seed1234]

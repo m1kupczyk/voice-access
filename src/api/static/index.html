@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biometryczna kontrola dostępu głosem</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.4rem; }
+  nav button { padding: .5rem 1rem; border: 1px solid #888; background: #f4f4f4; cursor: pointer; }
+  nav button.active { background: #2b5fab; color: #fff; border-color: #2b5fab; }
+  section { display: none; margin-top: 1.5rem; }
+  section.active { display: block; }
+  label { display: block; margin: .8rem 0 .3rem; }
+  input, select { padding: .4rem; font-size: 1rem; width: 14rem; }
+  .scroll { overflow-x: auto; }
+  table.stats { font-size: .85rem; margin-top: .8rem; }
+  table.stats th, table.stats td { border: 1px solid #ccc; padding: .25rem .5rem; text-align: right; }
+  table.stats th:first-child, table.stats td:first-child { text-align: left; }
+  button.action { margin: .5rem .5rem .5rem 0; padding: .5rem 1rem; font-size: 1rem; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .digits { font-size: 3rem; letter-spacing: .6rem; font-family: ui-monospace, monospace; margin: .5rem 0; }
+  .status { color: #555; min-height: 1.2rem; }
+  .rec { color: #c0392b; font-weight: bold; }
+  .result { margin-top: 1rem; padding: 1rem; border-radius: 6px; display: none; }
+  .granted { background: #e3f6e8; border: 2px solid #2e8b57; }
+  .denied { background: #fbe5e5; border: 2px solid #c0392b; }
+  .result h2 { margin: 0 0 .5rem; }
+  table { border-collapse: collapse; }
+  td { padding: .15rem .8rem .15rem 0; }
+  .error { color: #c0392b; }
+</style>
+</head>
+<body>
+<h1>Biometryczna kontrola dostępu głosem</h1>
+<nav>
+  <button id="tab-enroll" class="active" onclick="showView('enroll')">Rejestracja</button>
+  <button id="tab-verify" onclick="showView('verify')">Weryfikacja</button>
+  <button id="tab-stats" onclick="showView('stats')">Statystyki</button>
+</nav>
+
+<section id="view-enroll" class="active">
+  <p>Podaj pseudonim i nagraj swobodną wypowiedź (np. opowiedz o swoim dniu). Mów naturalnie przez co najmniej kilkadziesiąt sekund.</p>
+  <label for="enroll-name">Pseudonim</label>
+  <input id="enroll-name" placeholder="np. spk01" autocomplete="off">
+  <div>
+    <button class="action" id="enroll-start" onclick="enrollStart()">Nagrywaj</button>
+    <button class="action" id="enroll-stop" onclick="enrollStop()" disabled>Zatrzymaj i zarejestruj</button>
+  </div>
+  <div class="status" id="enroll-status"></div>
+  <div class="result" id="enroll-result"></div>
+</section>
+
+<section id="view-verify">
+  <label for="verify-user">ID użytkownika</label>
+  <input id="verify-user" type="number" min="1">
+  <label for="verify-scenario">Scenariusz (tylko do statystyk, nie wpływa na decyzję)</label>
+  <select id="verify-scenario">
+    <option value="genuine" selected>Prawowity użytkownik</option>
+    <option value="wrong_digits">Błędne cyfry</option>
+    <option value="impostor">Podszywanie się (inna osoba)</option>
+    <option value="replay">Odtworzenie nagrania</option>
+  </select>
+  <div><button class="action" id="verify-challenge" onclick="getChallenge()">Pobierz cyfry</button></div>
+  <div id="challenge-box" style="display:none">
+    <p>Wypowiedz po polsku poniższe cyfry:</p>
+    <div class="digits" id="challenge-digits"></div>
+    <div class="status" id="challenge-expiry"></div>
+    <button class="action" id="verify-start" onclick="verifyStart()">Nagrywaj</button>
+    <button class="action" id="verify-stop" onclick="verifyStop()" disabled>Zatrzymaj i zweryfikuj</button>
+  </div>
+  <div class="status" id="verify-status"></div>
+  <div class="result" id="verify-result"></div>
+</section>
+
+<section id="view-stats">
+  <p>Statystyki prób na żywo (test akceptacyjny prototypu, nie zastępują ewaluacji offline).</p>
+  <label for="stats-user">ID użytkownika (puste = wszyscy)</label>
+  <input id="stats-user" type="number" min="1">
+  <div>
+    <button class="action" onclick="loadStats()">Odśwież</button>
+    <a id="stats-csv" href="/stats.csv">Pobierz CSV</a>
+  </div>
+  <div class="status" id="stats-status"></div>
+  <div class="scroll" id="stats-table"></div>
+</section>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let recorder = null, chunks = [], timerId = null, challenge = null, expiryId = null;
+
+const SCENARIO_PL = { genuine: "Prawowity użytkownik", wrong_digits: "Błędne cyfry", impostor: "Podszywanie się", replay: "Odtworzenie nagrania", unlabeled: "Bez etykiety" };
+const REASON_PL = { speaker: "Głos", digits: "Cyfry", both: "Głos i cyfry", expired: "Wygasło", replay_cm: "Detekcja odtworzenia", other: "Inne" };
+
+function showView(name) {
+  for (const v of ["enroll", "verify", "stats"]) {
+    $("view-" + v).classList.toggle("active", v === name);
+    $("tab-" + v).classList.toggle("active", v === name);
+  }
+  if (name === "stats") loadStats();
+}
+
+function pct(x) { return x === null || x === undefined ? "–" : fmt(100 * x, 1) + " %"; }
+
+async function loadStats() {
+  const uid = $("stats-user").value;
+  const q = uid ? `?user_id=${encodeURIComponent(uid)}` : "";
+  $("stats-csv").href = "/stats.csv" + q;
+  $("stats-status").textContent = "Wczytywanie…";
+  const res = await fetch("/stats" + q);
+  const body = await res.json();
+  if (!res.ok) { $("stats-status").innerHTML = `<span class="error">${esc(body.detail)}</span>`; $("stats-table").innerHTML = ""; return; }
+  const reasons = Object.keys(REASON_PL);
+  const head = ["Scenariusz", "Próby", "Zaakceptowane", "Odsetek akceptacji", "Średni wynik", "Mediana wyniku", "Średni czas [s]"]
+    .concat(reasons.map((k) => "Odrzucone: " + REASON_PL[k]));
+  const rows = body.scenarios.map((s) => `<tr><td>${esc(SCENARIO_PL[s.scenario] || s.scenario)}</td>
+    <td>${s.n_attempts}</td><td>${s.n_accepted}</td><td>${pct(s.accept_rate)}</td>
+    <td>${fmt(s.score_mean)}</td><td>${fmt(s.score_median)}</td><td>${fmt(s.latency_mean_s, 2)}</td>
+    ${reasons.map((k) => `<td>${s.reject_reasons[k] ?? 0}</td>`).join("")}</tr>`).join("");
+  $("stats-table").innerHTML = `<table class="stats"><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr>${rows}</table>`;
+  $("stats-status").textContent = `Łącznie prób: ${body.n_attempts}`;
+}
+
+function pickMime() {
+  const types = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4", "audio/webm"];
+  return types.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
+}
+
+async function startRecording(statusEl) {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+  });
+  const mime = pickMime();
+  recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
+  chunks = [];
+  recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  recorder.start();
+  const t0 = Date.now();
+  statusEl.innerHTML = '<span class="rec">● Nagrywanie 0 s</span>';
+  timerId = setInterval(() => {
+    statusEl.innerHTML = `<span class="rec">● Nagrywanie ${Math.round((Date.now() - t0) / 1000)} s</span>`;
+  }, 500);
+}
+
+function stopRecording() {
+  return new Promise((resolve) => {
+    recorder.onstop = () => {
+      clearInterval(timerId);
+      recorder.stream.getTracks().forEach((t) => t.stop());
+      resolve(new Blob(chunks, { type: recorder.mimeType }));
+    };
+    recorder.stop();
+  });
+}
+
+async function postAudio(url, blob) {
+  const res = await fetch(url, { method: "POST", body: blob, headers: { "Content-Type": blob.type || "application/octet-stream" } });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.detail || res.statusText);
+  return body;
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function fmt(x, d = 3) { return x === null || x === undefined ? "–" : Number(x).toFixed(d).replace(".", ","); }
+
+async function enrollStart() {
+  const name = $("enroll-name").value.trim();
+  if (!name) { $("enroll-status").textContent = "Podaj pseudonim."; return; }
+  $("enroll-result").style.display = "none";
+  try {
+    await startRecording($("enroll-status"));
+    $("enroll-start").disabled = true; $("enroll-stop").disabled = false;
+  } catch (e) { $("enroll-status").innerHTML = `<span class="error">Brak dostępu do mikrofonu: ${esc(e.message)}</span>`; }
+}
+
+async function enrollStop() {
+  $("enroll-stop").disabled = true;
+  const blob = await stopRecording();
+  $("enroll-status").textContent = "Przetwarzanie…";
+  const el = $("enroll-result");
+  try {
+    const r = await postAudio(`/enroll?name=${encodeURIComponent($("enroll-name").value.trim())}`, blob);
+    localStorage.setItem("voiceAccessUserId", r.user_id);
+    $("verify-user").value = r.user_id;
+    el.className = "result granted";
+    el.innerHTML = `<h2>Zarejestrowano</h2><table>
+      <tr><td>Pseudonim</td><td>${esc(r.name)}</td></tr>
+      <tr><td>ID użytkownika</td><td><b>${r.user_id}</b></td></tr>
+      <tr><td>Liczba nagrań wzorcowych</td><td>${r.n_embeddings}</td></tr>
+      <tr><td>Długość nagrania</td><td>${fmt(r.audio_seconds, 1)} s</td></tr></table>`;
+    $("enroll-status").textContent = "";
+  } catch (e) {
+    el.className = "result denied"; el.innerHTML = `<h2>Błąd rejestracji</h2><p>${esc(e.message)}</p>`;
+    $("enroll-status").textContent = "";
+  }
+  el.style.display = "block";
+  $("enroll-start").disabled = false;
+}
+
+async function getChallenge() {
+  const uid = $("verify-user").value;
+  $("verify-result").style.display = "none";
+  $("verify-status").textContent = "";
+  if (!uid) { $("verify-status").textContent = "Podaj ID użytkownika."; return; }
+  const res = await fetch(`/challenge?user_id=${encodeURIComponent(uid)}`);
+  const body = await res.json();
+  if (!res.ok) { $("verify-status").innerHTML = `<span class="error">${esc(body.detail)}</span>`; return; }
+  challenge = body;
+  $("challenge-digits").textContent = body.digits;
+  $("challenge-box").style.display = "block";
+  $("verify-start").disabled = false; $("verify-stop").disabled = true;
+  clearInterval(expiryId);
+  const tick = () => {
+    const left = Math.max(0, Math.round(challenge.expires_at - Date.now() / 1000));
+    $("challenge-expiry").textContent = left > 0 ? `Ważne jeszcze ${left} s` : "Wyzwanie wygasło – pobierz nowe cyfry.";
+    if (!left) clearInterval(expiryId);
+  };
+  tick(); expiryId = setInterval(tick, 1000);
+}
+
+async function verifyStart() {
+  try {
+    await startRecording($("verify-status"));
+    $("verify-start").disabled = true; $("verify-stop").disabled = false;
+  } catch (e) { $("verify-status").innerHTML = `<span class="error">Brak dostępu do mikrofonu: ${esc(e.message)}</span>`; }
+}
+
+async function verifyStop() {
+  $("verify-stop").disabled = true;
+  const blob = await stopRecording();
+  $("verify-status").textContent = "Przetwarzanie…";
+  clearInterval(expiryId);
+  const el = $("verify-result");
+  try {
+    const r = await postAudio(`/verify?user_id=${encodeURIComponent(challenge.user_id)}&nonce=${encodeURIComponent(challenge.nonce)}&scenario=${encodeURIComponent($("verify-scenario").value)}`, blob);
+    const ok = (b) => (b ? "✔" : "✘");
+    el.className = "result " + (r.accepted ? "granted" : "denied");
+    el.innerHTML = `<h2>${r.accepted ? "Dostęp przyznany" : "Dostęp odmówiony"}</h2><table>
+      <tr><td>Oczekiwane cyfry</td><td>${r.asr.expected}</td></tr>
+      <tr><td>Rozpoznany tekst (ASR)</td><td>${esc(r.asr.text) || "–"}</td></tr>
+      <tr><td>Rozpoznane cyfry</td><td>${esc(r.asr.recognized) || "–"} ${ok(r.asr.digits_ok)}</td></tr>
+      <tr><td>Wynik mówcy (cosinus)</td><td>${fmt(r.speaker.score)} (próg ${fmt(r.speaker.threshold)}) ${ok(r.speaker.score_ok)}</td></tr>
+      ${r.replay.enabled ? `<tr><td>Detekcja odtworzenia</td><td>${fmt(r.replay.score)} ${ok(r.replay.cm_ok)}</td></tr>` : ""}
+      ${r.reject_reason ? `<tr><td>Powód odrzucenia</td><td>${esc(REASON_PL[r.reject_reason] || r.reject_reason)}</td></tr>` : ""}
+      <tr><td>Scenariusz</td><td>${esc(SCENARIO_PL[r.scenario] || r.scenario)}</td></tr>
+      </table>`;
+  } catch (e) {
+    el.className = "result denied"; el.innerHTML = `<h2>Dostęp odmówiony</h2><p>${esc(e.message)}</p>`;
+  }
+  $("verify-status").textContent = "";
+  el.style.display = "block";
+  $("challenge-box").style.display = "none";
+  challenge = null;
+}
+
+$("verify-user").value = localStorage.getItem("voiceAccessUserId") || "";
+</script>
+</body>
+</html>

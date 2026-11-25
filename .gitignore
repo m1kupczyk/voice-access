@@ -1,0 +1,20 @@
+# Raw audio and biometric data
+*.wav
+*.flac
+*.m4a
+/data/
+*.db
+
+# Models and environments
+pretrained_models/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.DS_Store
+*.mp3
+
+# Editor / tooling
+.cursor/

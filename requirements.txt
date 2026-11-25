@@ -1,0 +1,22 @@
+# Top-level dependencies, unpinned. Exact versions: requirements.lock.txt
+numpy
+scipy
+pandas
+pyyaml
+tqdm
+soundfile
+librosa
+torch
+torchaudio
+speechbrain
+scikit-learn
+openai-whisper
+matplotlib
+fastapi
+uvicorn
+python-multipart
+pydantic
+sounddevice
+pytest
+httpx
+ruff

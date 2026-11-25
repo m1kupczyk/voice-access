@@ -1,0 +1,16 @@
+{
+  "model": "speechbrain/spkrec-ecapa-voxceleb",
+  "seed": 1234,
+  "max_trials": null,
+  "num_threads": 1,
+  "threadpoolctl_applied": true,
+  "device": "cpu",
+  "n_trials": 37611,
+  "n_target": 18802,
+  "n_nontarget": 18809,
+  "eer": 0.008986732916115188,
+  "n_embeddings_computed": 2827,
+  "n_embeddings_cached_at_start": 1881,
+  "scoring_seconds": 314.967380874994,
+  "seconds_per_computed_embedding": 0.111414001016977
+}

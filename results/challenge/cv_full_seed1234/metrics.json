@@ -1,0 +1,98 @@
+{
+  "corpus": "common_voice_sw_pl_digits",
+  "split_mode": "speaker_disjoint",
+  "n_speakers": 62,
+  "n_speakers_excluded_too_few_digits": 47,
+  "seed": 1234,
+  "device": "cpu",
+  "num_threads": 1,
+  "asr_model": "small",
+  "asr_language": "pl",
+  "digit_string_length": 4,
+  "asr": {
+    "n_utterances": 310,
+    "digit_string_accuracy": 0.9612903225806452,
+    "digit_error_rate": 0.012903225806451613,
+    "asr_latency_mean_s": 1.2855848478606804,
+    "asr_latency_median_s": 1.26461166649824,
+    "asr_latency_p95_s": 1.4745687331393131,
+    "ecapa_latency_mean_s": 0.05766605776894252,
+    "audio_mean_s": 4.337113911290323
+  },
+  "speaker_overall": {
+    "n_target": 310,
+    "n_nontarget": 18910,
+    "eer": 0.013432046536224236,
+    "eer_ci": [
+      0.0072428609201480795,
+      0.023773135906927523
+    ],
+    "ci_level": 0.95
+  },
+  "threshold_transfer": {
+    "method": "eer",
+    "far_target": null,
+    "threshold": 0.46715521812438965,
+    "n_dev": 4805,
+    "n_eval": 4805,
+    "dev_far": 0.015053763440860216,
+    "dev_frr": 0.012903225806451646,
+    "dev_eer": 0.01397849462365593,
+    "eval_far": 0.010752688172043012,
+    "eval_frr": 0.012903225806451646,
+    "eval_eer": 0.012903225806451629
+  },
+  "scenarios_dev": {
+    "genuine": {
+      "n": 155,
+      "accept_speaker_only": 0.9870967741935484,
+      "accept_digits_only": 0.9741935483870968,
+      "accept_combined": 0.9612903225806452
+    },
+    "impostor": {
+      "n": 4650,
+      "accept_speaker_only": 0.015053763440860216,
+      "accept_digits_only": 0.9741935483870968,
+      "accept_combined": 0.014623655913978495
+    },
+    "wrong_digits": {
+      "n": 155,
+      "accept_speaker_only": 0.9870967741935484,
+      "accept_digits_only": 0.0,
+      "accept_combined": 0.0
+    },
+    "replay": {
+      "n": 155,
+      "accept_speaker_only": 0.9870967741935484,
+      "accept_digits_only": 0.0,
+      "accept_combined": 0.0
+    }
+  },
+  "scenarios_eval": {
+    "genuine": {
+      "n": 155,
+      "accept_speaker_only": 0.9870967741935484,
+      "accept_digits_only": 0.9483870967741935,
+      "accept_combined": 0.9483870967741935
+    },
+    "impostor": {
+      "n": 4650,
+      "accept_speaker_only": 0.010752688172043012,
+      "accept_digits_only": 0.9483870967741935,
+      "accept_combined": 0.010537634408602151
+    },
+    "wrong_digits": {
+      "n": 155,
+      "accept_speaker_only": 0.9870967741935484,
+      "accept_digits_only": 0.0,
+      "accept_combined": 0.0
+    },
+    "replay": {
+      "n": 155,
+      "accept_speaker_only": 0.9870967741935484,
+      "accept_digits_only": 0.0,
+      "accept_combined": 0.0
+    }
+  },
+  "limitation": "Synthetic strings are concatenated single-word clips (no coarticulation, artificial silences, one session/device per speaker); not equivalent to naturally read digit strings."
+}
