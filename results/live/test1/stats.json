@@ -1,0 +1,83 @@
+{
+  "kind": "live_acceptance_test",
+  "note": "operator-labelled live attempts; not a replacement for the offline evaluation",
+  "generated_at": "2026-11-26T12:55:33.190918+00:00",
+  "db_path": "data/api/voice_access.db",
+  "user_id": null,
+  "git_commit": "695b16a2710ef0526a56c02be506b22bcfb9c31d",
+  "n_attempts": 27,
+  "scenarios": [
+    {
+      "scenario": "genuine",
+      "n_attempts": 11,
+      "n_accepted": 11,
+      "accept_rate": 1.0,
+      "n_scored": 11,
+      "score_mean": 0.6575636657112954,
+      "score_median": 0.6644940220418207,
+      "latency_mean_s": 1.807708833184072,
+      "reject_reasons": {
+        "speaker": 0,
+        "digits": 0,
+        "both": 0,
+        "expired": 0,
+        "replay_cm": 0,
+        "other": 0
+      }
+    },
+    {
+      "scenario": "wrong_digits",
+      "n_attempts": 5,
+      "n_accepted": 0,
+      "accept_rate": 0.0,
+      "n_scored": 5,
+      "score_mean": 0.5949109735109623,
+      "score_median": 0.6104660340687801,
+      "latency_mean_s": 1.700767200201517,
+      "reject_reasons": {
+        "speaker": 0,
+        "digits": 5,
+        "both": 0,
+        "expired": 0,
+        "replay_cm": 0,
+        "other": 0
+      }
+    },
+    {
+      "scenario": "impostor",
+      "n_attempts": 6,
+      "n_accepted": 0,
+      "accept_rate": 0.0,
+      "n_scored": 6,
+      "score_mean": 0.17492745281461466,
+      "score_median": 0.1674140045044591,
+      "latency_mean_s": 1.691015388831147,
+      "reject_reasons": {
+        "speaker": 5,
+        "digits": 0,
+        "both": 1,
+        "expired": 0,
+        "replay_cm": 0,
+        "other": 0
+      }
+    },
+    {
+      "scenario": "replay",
+      "n_attempts": 5,
+      "n_accepted": 0,
+      "accept_rate": 0.0,
+      "n_scored": 5,
+      "score_mean": 0.3329835804906381,
+      "score_median": 0.31534614420560975,
+      "latency_mean_s": 2.893152683402877,
+      "reject_reasons": {
+        "speaker": 4,
+        "digits": 0,
+        "both": 1,
+        "expired": 0,
+        "replay_cm": 0,
+        "other": 0
+      }
+    }
+  ]
+}
