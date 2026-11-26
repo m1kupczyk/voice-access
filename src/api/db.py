@@ -53,6 +53,14 @@ CREATE TABLE IF NOT EXISTS attempts (
     scenario     TEXT,
     reject_reason TEXT
 );
+CREATE TABLE IF NOT EXISTS relabels (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    attempt_id   INTEGER NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,
+    old_scenario TEXT,
+    new_scenario TEXT NOT NULL,
+    note         TEXT,
+    created_at   REAL NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_embeddings_user ON embeddings(user_id, model_name);
 CREATE INDEX IF NOT EXISTS idx_attempts_user ON attempts(user_id);
 """
@@ -177,6 +185,29 @@ class Database:
         marks = ", ".join("?" for _ in fields)
         cur = self._exec(f"INSERT INTO attempts ({cols}) VALUES ({marks})", tuple(fields.values()))
         return int(cur.lastrowid)
+
+    def get_attempt(self, attempt_id: int) -> sqlite3.Row | None:
+        return self._exec("SELECT * FROM attempts WHERE id = ?", (attempt_id,)).fetchone()
+
+    def relabel_attempt(self, attempt_id: int, scenario: str, now: float,
+                        note: str | None = None) -> str | None:
+        """Set an attempt's scenario label, record it in `relabels`; return the old label."""
+        with self._lock:
+            c = self._conn
+            r = c.execute("SELECT scenario FROM attempts WHERE id = ?", (attempt_id,)).fetchone()
+            if r is None:
+                raise KeyError(f"attempt {attempt_id} not found")
+            c.execute("BEGIN")
+            try:
+                c.execute("UPDATE attempts SET scenario = ? WHERE id = ?", (scenario, attempt_id))
+                c.execute("INSERT INTO relabels (attempt_id, old_scenario, new_scenario, note, "
+                          "created_at) VALUES (?, ?, ?, ?, ?)",
+                          (attempt_id, r["scenario"], scenario, note, now))
+                c.execute("COMMIT")
+            except Exception:
+                c.execute("ROLLBACK")
+                raise
+        return r["scenario"]
 
     def list_attempts(self, user_id: int | None = None) -> list[sqlite3.Row]:
         if user_id is None:
